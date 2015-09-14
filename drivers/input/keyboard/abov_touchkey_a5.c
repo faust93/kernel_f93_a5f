@@ -35,6 +35,7 @@
 #include <linux/regulator/consumer.h>
 
 #include <linux/pinctrl/consumer.h>
+#include <linux/bln.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_gpio.h>
@@ -70,6 +71,8 @@
 #define ABOV_RESET_DELAY	150
 
 static struct device *sec_touchkey;
+
+struct abov_touchkey_platform_data *bln_abov_data;
 
 #define FW_VERSION 0xC
 #define FW_CHECKSUM_H 0x4A
@@ -1485,6 +1488,44 @@ static int abov_parse_dt(struct device *dev,
 }
 #endif
 
+#ifdef CONFIG_GENERIC_BLN
+
+static int abov_enable_touchkey_bln(int led_mask)
+{
+
+	bln_abov_data->keyled(true);
+
+	return 0;
+}
+
+static int abov_disable_touchkey_bln(int led_mask)
+{
+	bln_abov_data->keyled(false);
+	return 0;
+}
+
+static int abov_power_on(void)
+{
+	bln_abov_data->power(bln_abov_data,true);
+	return 0;
+}
+
+static int abov_power_off(void)
+{
+	bln_abov_data->keyled(false);
+	bln_abov_data->power(bln_abov_data,false);
+	return 0;
+}
+
+static struct bln_implementation abov_touchkey_bln = {
+	.enable = abov_enable_touchkey_bln,
+	.disable = abov_disable_touchkey_bln,
+	.power_on = abov_power_on,
+	.power_off = abov_power_off,
+	.led_count = 1
+};
+#endif
+
 static int abov_tk_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
 {
@@ -1642,6 +1683,10 @@ static int abov_tk_probe(struct i2c_client *client,
 			__func__);
 	}
 
+#ifdef CONFIG_GENERIC_BLN
+	bln_abov_data = pdata;
+	register_bln_implementation(&abov_touchkey_bln);
+#endif
 
 #ifdef LED_TWINKLE_BOOTING
 	if (get_lcd_attached("GET") == 0) {
