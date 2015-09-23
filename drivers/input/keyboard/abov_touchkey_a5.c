@@ -72,7 +72,6 @@
 
 static struct device *sec_touchkey;
 
-struct abov_touchkey_platform_data *bln_abov_data;
 
 #define FW_VERSION 0xC
 #define FW_CHECKSUM_H 0x4A
@@ -146,7 +145,10 @@ struct abov_tk_info {
 
 };
 
-
+#ifdef CONFIG_GENERIC_BLN
+struct abov_touchkey_platform_data *bln_abov_data;
+struct abov_tk_info *bln_info;
+#endif
 static int abov_tk_input_open(struct input_dev *dev);
 static void abov_tk_input_close(struct input_dev *dev);
 
@@ -1425,7 +1427,8 @@ int abov_gpio_reg_init(struct device *dev,
 		pdata->avdd_vreg = NULL;
 		dev_err(dev, "pdata->avdd_vreg get error, ignoring\n");
 	} else {
-		regulator_set_voltage(pdata->avdd_vreg, 2850000, 2850000);
+//		regulator_set_voltage(pdata->avdd_vreg, 2850000, 2850000);
+		regulator_set_voltage(pdata->avdd_vreg, 2450000, 2450000);
 	}
 
 	pdata->power = abov_power;
@@ -1492,28 +1495,56 @@ static int abov_parse_dt(struct device *dev,
 
 static int abov_enable_touchkey_bln(int led_mask)
 {
+	u8 cmd;
+	int ret;
+	cmd = CMD_LED_ON;
 
-	bln_abov_data->keyled(true);
-
+	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
+	if (ret < 0) {
+		abov_touchled_cmd_reserved = 1;
+	    goto out;
+	}
+	msleep(20);
+	abov_touchled_cmd_reserved = 0;
+out:
+	abov_touchkey_led_status = CMD_LED_ON;
 	return 0;
 }
 
 static int abov_disable_touchkey_bln(int led_mask)
 {
-	bln_abov_data->keyled(false);
+	u8 cmd;
+	int ret;
+	cmd = CMD_LED_OFF;
+
+	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
+	if (ret < 0) {
+		abov_touchled_cmd_reserved = 1;
+	    goto out;
+	}
+	msleep(20);
+	abov_touchled_cmd_reserved = 0;
+out:
+	abov_touchkey_led_status = CMD_LED_OFF;
 	return 0;
 }
 
 static int abov_power_on(void)
 {
-	bln_abov_data->power(bln_abov_data,true);
+	abov_power(bln_abov_data,true);
+	msleep(20);
 	return 0;
 }
 
 static int abov_power_off(void)
 {
-	bln_abov_data->keyled(false);
-	bln_abov_data->power(bln_abov_data,false);
+	u8 cmd;
+	int ret;
+	cmd = CMD_LED_OFF;
+	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
+	abov_touchkey_led_status = CMD_LED_OFF;
+	abov_power(bln_abov_data,false);
+	msleep(20);
 	return 0;
 }
 
@@ -1684,7 +1715,8 @@ static int abov_tk_probe(struct i2c_client *client,
 	}
 
 #ifdef CONFIG_GENERIC_BLN
-	bln_abov_data = pdata;
+	bln_abov_data = info->pdata;
+	bln_info = info;
 	register_bln_implementation(&abov_touchkey_bln);
 #endif
 
