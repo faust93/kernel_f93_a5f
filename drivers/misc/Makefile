@@ -76,7 +76,4 @@ obj-$(CONFIG_NFC_PN547)	+= pn547.o
 obj-y				+= qcom/
 obj-$(CONFIG_CHECK_SIMSLOT_COUNT) += sim_slot.o
 obj-$(CONFIG_DM_VERITY) += dmverity_query.o
-ifeq ($(TIMA_ENABLED),1)
-obj-$(CONFIG_TIMA_LOG)		+= tima_debug_log.o
-endif
 obj-$(CONFIG_GENERIC_BLN)	+= bln.o
