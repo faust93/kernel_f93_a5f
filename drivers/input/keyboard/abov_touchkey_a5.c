@@ -41,6 +41,10 @@
 #include <linux/of_gpio.h>
 #endif
 
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
+
 /* registers */
 #define ABOV_BTNSTATUS		0x00
 #define ABOV_FW_VER			0x01
@@ -1531,20 +1535,13 @@ out:
 
 static int abov_power_on(void)
 {
-	abov_power(bln_abov_data,true);
-	msleep(20);
+	abov_tk_input_open(bln_info->input_dev);
 	return 0;
 }
 
 static int abov_power_off(void)
 {
-	u8 cmd;
-	int ret;
-	cmd = CMD_LED_OFF;
-	ret = abov_tk_i2c_write(bln_info->client, ABOV_BTNSTATUS, &cmd, 1);
-	abov_touchkey_led_status = CMD_LED_OFF;
-	abov_power(bln_abov_data,false);
-	msleep(20);
+	abov_tk_input_close(bln_info->input_dev);
 	return 0;
 }
 
@@ -1556,6 +1553,24 @@ static struct bln_implementation abov_touchkey_bln = {
 	.led_count = 1
 };
 #endif
+
+#ifdef CONFIG_POWERSUSPEND
+
+static void abov_early_suspend(struct power_suspend *h)
+{
+	abov_tk_input_close(bln_info->input_dev);
+}
+
+static void abov_late_resume(struct power_suspend *h)
+{
+	abov_tk_input_open(bln_info->input_dev);
+}
+
+static struct power_suspend abov_suspend_data = {
+    .suspend = abov_early_suspend,
+    .resume = abov_late_resume,
+};
+#endif  /* CONFIG_POWERSUSPEND */
 
 static int abov_tk_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
@@ -1718,6 +1733,10 @@ static int abov_tk_probe(struct i2c_client *client,
 	bln_abov_data = info->pdata;
 	bln_info = info;
 	register_bln_implementation(&abov_touchkey_bln);
+#endif
+
+#ifdef CONFIG_POWERSUSPEND
+	register_power_suspend(&abov_suspend_data);
 #endif
 
 #ifdef LED_TWINKLE_BOOTING

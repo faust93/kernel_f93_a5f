@@ -32,6 +32,9 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
 #include <linux/firmware.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
@@ -49,6 +52,7 @@
 #include <linux/cpufreq.h>
 #include <asm/mach-types.h>
 #include <linux/delay.h>
+
 
 #ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
 #include <linux/cpufreq.h>
@@ -429,6 +433,9 @@ struct mms_ts_info {
 #endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
+#endif
+#ifdef CONFIG_POWERSUSPEND
+	struct power_suspend power_suspend;
 #endif
 
 #ifdef TOUCH_BOOSTER_DVFS
@@ -5549,6 +5556,24 @@ void melfas_register_callback(struct tsp_callbacks *cb)
 }
 #endif
 
+#ifdef CONFIG_POWERSUSPEND
+static void mms_early_suspend(struct power_suspend *h)
+{
+	struct mms_ts_info *info;
+	info = container_of(h, struct mms_ts_info, power_suspend);
+	mms_ts_suspend(&info->client->dev);
+}
+
+static void mms_late_resume(struct power_suspend *h)
+{
+	struct mms_ts_info *info;
+	info = container_of(h, struct mms_ts_info, power_suspend);
+	mms_ts_resume(&info->client->dev);
+}
+
+#endif  /* CONFIG_POWERSUSPEND */
+
+
 extern int get_lcd_attached(char *);
 static int mms_ts_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
@@ -5807,6 +5832,12 @@ static int mms_ts_probe(struct i2c_client *client,
 	register_early_suspend(&info->early_suspend);
 #endif
 
+#ifdef CONFIG_POWERSUSPEND
+	info->power_suspend.suspend = mms_early_suspend;
+	info->power_suspend.resume = mms_late_resume;
+	register_power_suspend(&info->power_suspend);
+#endif
+
 /* START - Added to support API's for TSP tuning */
 	if (alloc_chrdev_region(&info->mms_dev, 0, 1, "mms_ts")) {
 		dev_err(&client->dev, "failed to allocate device region\n");
@@ -5910,8 +5941,6 @@ static int mms_ts_probe(struct i2c_client *client,
 		INIT_DELAYED_WORK(&info->ghost_check, ghost_touch_check);
 		p_ghost_check = &info->ghost_check;
 #endif
-
-
 	return 0;
 
 err_req_irq:
